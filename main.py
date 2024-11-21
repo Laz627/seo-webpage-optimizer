@@ -166,11 +166,11 @@ Instructions:
 1. Analyze the original meta title, meta description, and H1 tag. Provide specific recommendations for improving each based on SEO best practices and the target keyword.
 2. Identify important topics or subtopics in the competitor headings that are missing or underdeveloped in the original content.
 3. For each identified area:
-   - Recommend new sections to add.
-   - Specify where to place them within the existing content structure.
-   - Combine the heading level and new section heading into one line, e.g., "New H2 Section Heading: Noise Reduction Comparison".
+   - Provide a specific action heading that describes what needs to be done, replacing "Recommendation" with the action.
+   - Combine the action, heading level, and new section heading into one line, e.g., "New Section Heading: H3: The Energy Efficiency of Triple Pane vs Double Pane Windows".
+   - Specify where to place the new section within the existing content structure.
    - Briefly describe what content should be included under each new section.
-4. If rearranging existing sections would improve content flow, provide specific suggestions.
+4. If rearranging existing sections would improve content flow, provide specific suggestions using the same format.
 5. If the original content is already comprehensive, acknowledge that but suggest any minor improvements if applicable.
 6. Avoid using branded terms unless necessary.
 7. Present the recommendations clearly and in a structured format.
@@ -194,23 +194,10 @@ For each recommendation:
 
 ---
 
-**Recommendation #[X]:**
+[Action Heading]
 
-- **New Section Heading:** [Combined heading level and heading title]
 - **Placement:** [Where to insert in the existing structure]
 - **Content Description:** [Brief description of what to include]
-
----
-
-If rearranging sections:
-
----
-
-**Rearrangement Suggestion:**
-
-- **Current Section:** [Existing heading]
-- **New Position:** [Where it should be moved]
-- **Reason:** [Why this improves the content flow]
 
 ---
 
