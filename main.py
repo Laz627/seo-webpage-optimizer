@@ -176,8 +176,12 @@ def highlight_differences(original_html, recommendations):
 def convert_html_to_docx(html_content):
     from html2docx import html2docx
     doc = Document()
-    html2docx(html_content, doc)
-    return doc
+    try:
+        html2docx(html_content, doc)
+        return doc
+    except Exception as e:
+        st.error(f"Error converting HTML to Docx: {str(e)}")
+        return None
 
 # Streamlit UI
 st.write("Enter your API key and target keyword below:")
@@ -228,24 +232,25 @@ if st.button("Optimize Content"):
 
                         # Incorporate recommendations into original HTML
                         modified_html = highlight_differences(html_content, optimized_structure)
-
+                        
+                        # Debug: Output the modified HTML to check if it's valid
+                        st.subheader("Modified HTML Content:")
+                        st.code(modified_html, language='html')
+                        
                         # Convert modified HTML to Word document
                         doc = convert_html_to_docx(modified_html)
-
-                        # Create a BytesIO buffer and save the docx content
-                        bio = BytesIO()
-                        doc.save(bio)
-                        bio.seek(0)
-
-                        st.download_button(
-                            label="Download Updated Content",
-                            data=bio,
-                            file_name=f"updated_content_{keyword.replace(' ', '_')}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
-                    else:
-                        st.error("Failed to generate optimized structure. Please try again.")
-            except Exception as e:
-                st.error(f"Error processing files: {str(e)}")
-    else:
-        st.error("Please enter your API key, target keyword, and upload your HTML files to proceed.")
+                        
+                        if doc:
+                            # Create a BytesIO buffer and save the docx content
+                            bio = BytesIO()
+                            doc.save(bio)
+                            bio.seek(0)
+                        
+                            st.download_button(
+                                label="Download Updated Content",
+                                data=bio,
+                                file_name=f"updated_content_{keyword.replace(' ', '_')}.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            )
+                        else:
+                            st.error("Failed to convert modified HTML to a Word document.")
