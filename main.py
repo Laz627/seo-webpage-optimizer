@@ -1,12 +1,10 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import openai
 from openai import OpenAI
 from docx import Document
 from docx.shared import RGBColor, Pt
 from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.text import WD_UNDERLINE
 from io import BytesIO
 import time
 import random
@@ -38,6 +36,26 @@ if 'serpapi_api_key' not in st.session_state:
 if 'keyword' not in st.session_state:
     st.session_state.keyword = ''
 
+# List of user agents to rotate
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    ' (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    ' (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36',
+    # Add more user agents as needed
+]
+
+def get_random_headers():
+    headers = {
+        'User-Agent': random.choice(USER_AGENTS),
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.google.com/',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Connection': 'keep-alive',
+    }
+    return headers
+
 def get_top_urls(keyword, serpapi_key, num_results=15):
     params = {
         "api_key": serpapi_key,
@@ -57,27 +75,6 @@ def get_top_urls(keyword, serpapi_key, num_results=15):
     except Exception as e:
         st.error(f"Error fetching search results: {str(e)}")
         return []
-
-# List of user agents to rotate
-USER_AGENTS = [
-    # Add several user agents here
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    ' (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    ' (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36',
-    # Add more user agents as needed
-]
-
-def get_random_headers():
-    headers = {
-        'User-Agent': random.choice(USER_AGENTS),
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://www.google.com/',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Connection': 'keep-alive',
-    }
-    return headers
 
 def analyze_competitor_content(urls):
     all_headings = []
@@ -174,6 +171,23 @@ Repeat this structure as needed, ensuring a logical flow of information that bes
         st.error(f"Error generating optimized structure: {str(e)}")
         return None
 
+def extract_headings_and_text(html_content):
+    try:
+        soup = BeautifulSoup(html_content, "html.parser")
+        # Remove scripts and styles
+        for element in soup(['script', 'style', 'noscript']):
+            element.decompose()
+        # Extract headings and text
+        headings = []
+        for tag in ['h2', 'h3', 'h4']:
+            for element in soup.find_all(tag):
+                headings.append((tag, element.get_text(strip=True)))
+        paragraphs = [p.get_text(strip=True) for p in soup.find_all('p')]
+        return headings, paragraphs
+    except Exception as e:
+        st.warning(f"Error extracting content: {str(e)}")
+        return [], []
+
 def highlight_differences(original_html, recommendations):
     # Parse the original HTML
     soup_original = BeautifulSoup(original_html, 'html.parser')
@@ -197,13 +211,16 @@ def highlight_differences(original_html, recommendations):
             continue
         elif line.startswith('- '):
             # Find the text in the original HTML and apply strikethrough
-            text_to_find = line[2:]
-            tag = soup_original.find(string=lambda text: text.strip() == text_to_find.strip())
+            text_to_find = line[2:].strip()
+            tag = soup_original.find(string=lambda text: text.strip() == text_to_find)
             if tag:
-                tag.wrap(soup_original.new_tag('del', style="color:red;"))
+                parent = tag.parent
+                del_tag = soup_original.new_tag('del', style="color:red;")
+                del_tag.string = tag
+                parent.string.replace_with(del_tag)
         elif line.startswith('+ '):
             # Insert additions in the appropriate place
-            text_to_add = line[2:]
+            text_to_add = line[2:].strip()
             # For simplicity, we can append additions at the end
             new_tag = soup_original.new_tag('span', style="color:red;")
             new_tag.string = text_to_add
@@ -237,47 +254,55 @@ if st.button("Optimize Content"):
     if openai_api_key and serpapi_api_key and keyword and uploaded_file:
         with st.spinner("Processing..."):
             # Read user's HTML content
-            html_content = uploaded_file.read().decode('utf-8')
-            user_headings, user_paragraphs = extract_headings_and_text(html_content)
-
-            # Get competitor data
-            urls = get_top_urls(keyword, serpapi_api_key, num_results=15)
-            if not urls:
-                st.error("No competitor URLs were extracted. Please check your SerpApi key and try again.")
-            else:
-                competitor_headings_list = analyze_competitor_content(urls)
-                heading_analysis = analyze_headings(competitor_headings_list)
-
-                # Generate optimized structure
-                optimized_structure = generate_optimized_structure(
-                    keyword=keyword,
-                    heading_analysis=heading_analysis,
-                    api_key=openai_api_key
-                )
-
-                if optimized_structure:
-                    st.subheader("Optimized Content Structure:")
-                    st.text(optimized_structure)
-
-                    # Incorporate recommendations into original HTML
-                    modified_html = highlight_differences(html_content, optimized_structure)
-
-                    # Convert modified HTML to Word document
-                    from html2docx import html2docx
-                    docx_content = html2docx(modified_html)
-
-                    # Create a BytesIO buffer and save the docx content
-                    bio = BytesIO()
-                    bio.write(docx_content)
-                    bio.seek(0)
-
-                    st.download_button(
-                        label="Download Updated Content",
-                        data=bio,
-                        file_name=f"updated_content_{keyword.replace(' ', '_')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    )
+            try:
+                html_content = uploaded_file.read().decode('utf-8')
+                if not html_content:
+                    st.error("Uploaded HTML content is empty.")
                 else:
-                    st.error("Failed to generate optimized structure. Please try again.")
+                    # Extract headings and paragraphs
+                    user_headings, user_paragraphs = extract_headings_and_text(html_content)
+
+                    # Get competitor data
+                    urls = get_top_urls(keyword, serpapi_api_key, num_results=15)
+                    if not urls:
+                        st.error("No competitor URLs were extracted. Please check your SerpApi key and try again.")
+                    else:
+                        competitor_headings_list = analyze_competitor_content(urls)
+                        heading_analysis = analyze_headings(competitor_headings_list)
+
+                        # Generate optimized structure
+                        optimized_structure = generate_optimized_structure(
+                            keyword=keyword,
+                            heading_analysis=heading_analysis,
+                            api_key=openai_api_key
+                        )
+
+                        if optimized_structure:
+                            st.subheader("Optimized Content Structure:")
+                            st.text(optimized_structure)
+
+                            # Incorporate recommendations into original HTML
+                            modified_html = highlight_differences(html_content, optimized_structure)
+
+                            # Convert modified HTML to Word document
+                            from html2docx import html2docx
+                            doc = Document()
+                            html2docx(modified_html, doc)
+
+                            # Create a BytesIO buffer and save the docx content
+                            bio = BytesIO()
+                            doc.save(bio)
+                            bio.seek(0)
+
+                            st.download_button(
+                                label="Download Updated Content",
+                                data=bio,
+                                file_name=f"updated_content_{keyword.replace(' ', '_')}.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            )
+                        else:
+                            st.error("Failed to generate optimized structure. Please try again.")
+            except Exception as e:
+                st.error(f"Error processing the uploaded file: {str(e)}")
     else:
         st.error("Please enter your API keys, target keyword, and upload your HTML file to proceed.")
