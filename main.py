@@ -147,9 +147,29 @@ def generate_detailed_recommendations(keyword, meta_title, meta_description, h1_
         competitor_meta_info += f"Competitor #{idx} Headings:\n{competitor_headings_str}\n\n"
 
     prompt = f"""
+    [Insert the updated prompt here]
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5  # Lowered temperature for more focused output
+        )
+        output = response.choices[0].message.content
+        return output
+    except Exception as e:
+        st.error(f"Error generating recommendations:\n\n{str(e)}")
+        return None
+
+
+    prompt = f"""
 You are an SEO content strategist.
 
-Your task is to analyze the provided original content structure, meta information, and competitor data to generate specific recommendations for improvement.
+Your task is to analyze the provided original content structure, meta information, and competitor data to generate specific, actionable recommendations for improvement.
 
 - **Keyword**: "{keyword}"
 - **Original Meta Title**: {meta_title}
@@ -166,31 +186,30 @@ Instructions:
 1. Analyze the original meta title, meta description, and H1 tag. Provide specific recommendations for improving each based on SEO best practices and the target keyword.
 2. Identify important topics or subtopics in the competitor headings that are missing or underdeveloped in the original content.
 3. For each identified area:
-   - Provide a specific action heading that describes what needs to be done, replacing "Recommendation" with the action.
-   - Combine the action, heading level, and new section heading into one line, using markdown syntax, e.g., "**New Section Heading:** H3: The Energy Efficiency of Triple Pane vs Double Pane Windows".
-   - Use markdown formatting for headings and separators.
-   - Specify where to place the new section within the existing content structure.
-   - Briefly describe what content should be included under each new section.
+   - Provide a clear, concise action item.
+   - Use bold headings to describe the action, such as "**Add New Section: H3 - Energy Efficiency Metrics**".
+   - Include a brief description of what content should be added or modified.
 4. If rearranging existing sections would improve content flow, provide specific suggestions using the same format.
 5. If the original content is already comprehensive, acknowledge that but suggest any minor improvements if applicable.
 6. Avoid using branded terms unless necessary.
-7. Present the recommendations clearly and in a structured format.
+7. Present the recommendations in a clear, structured format using markdown syntax, including bold text and bullet points where appropriate.
 
 Format:
 
-Provide your recommendations in the following format, using markdown syntax:
-
 **Meta Title Recommendation:**
+
 Your recommendation here
 
 ---
 
 **Meta Description Recommendation:**
+
 Your recommendation here
 
 ---
 
 **H1 Tag Recommendation:**
+
 Your recommendation here
 
 ---
@@ -201,32 +220,17 @@ For each recommendation:
 
 ---
 
-**[Action Heading]**
+**[Action Item]**
 
 - **Placement:** Where to insert in the existing structure
-- **Content Description:** Brief description of what to include
+- **Details:** Brief description of what to include
 
 ---
 
 Provide a final summary acknowledging if the content is comprehensive or noting any overall improvements.
 
-IMPORTANT: Ensure that you use markdown syntax for bold text and horizontal lines. Do not include any additional text outside of the specified format. Do not use bullet points or leading hyphens in your output. Use the headings and separators as shown in the format.
+IMPORTANT: Use markdown syntax for bold text and horizontal lines. Present the recommendations as clear, actionable items. Do not include any extraneous text or commentary.
 """
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7
-        )
-        output = response.choices[0].message.content
-        return output
-    except Exception as e:
-        st.error(f"Error generating recommendations:\n\n{str(e)}")
-        return None
 
 # Streamlit UI
 st.write("Enter your API key and target keyword below:")
