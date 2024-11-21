@@ -162,7 +162,7 @@ IMPORTANT: Do not include any additional text outside of the specified format. D
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
                 {"role": "user", "content": prompt}
