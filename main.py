@@ -34,11 +34,22 @@ if 'serpapi_api_key' not in st.session_state:
 if 'keyword' not in st.session_state:
     st.session_state.keyword = ''
 
-# List of user agents to rotate
 USER_AGENTS = [
+    # Add a variety of user agents
+    # Chrome on Windows
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
     ' AppleWebKit/537.36 (KHTML, like Gecko)'
     ' Chrome/93.0.4577.63 Safari/537.36',
+    # Safari on macOS
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+    ' AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15',
+    # Firefox on Linux
+    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:92.0)'
+    ' Gecko/20100101 Firefox/92.0',
+    # Edge on Windows
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    ' AppleWebKit/537.36 (KHTML, like Gecko)'
+    ' Chrome/92.0.4515.159 Safari/537.36 Edg/92.0.902.84',
     # Add more user agents as needed
 ]
 
@@ -48,10 +59,10 @@ def get_random_headers():
         'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.google.com/',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Accept': 'text/html,application/xhtml+xml,'
-                  'application/xml;q=0.9,image/webp,'
-                  'image/apng,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache',
+        # You can add more headers if necessary
     }
     return headers
 
@@ -93,27 +104,18 @@ def analyze_competitor_content(urls):
             try:
                 time.sleep(random.uniform(2, 5))  # Random delay
                 headers = get_random_headers()
-                proxy = get_free_proxy()
-                if not proxy:
-                    st.warning("Could not obtain a free proxy. Proceeding without proxy.")
-                    proxies = None
-                else:
-                    proxies = {
-                        'http': proxy,
-                        'https': proxy,
-                    }
                 session = requests.Session()
                 retries = requests.adapters.Retry(
                     total=3,
-                    backoff_factor=0.5,
-                    status_forcelist=[403, 500, 502, 503, 504],
+                    backoff_factor=1,
+                    status_forcelist=[403, 429, 500, 502, 503, 504],
                     raise_on_status=False,
                 )
                 adapter = requests.adapters.HTTPAdapter(max_retries=retries)
                 session.mount('http://', adapter)
                 session.mount('https://', adapter)
                 response = session.get(
-                    url, headers=headers, proxies=proxies, timeout=10
+                    url, headers=headers, timeout=10
                 )
                 response.raise_for_status()
                 soup = BeautifulSoup(response.content, "html.parser")
@@ -134,8 +136,7 @@ def analyze_competitor_content(urls):
             except requests.exceptions.RequestException as e:
                 attempts += 1
                 st.warning(
-                    f"Attempt {attempts} for {url} failed with proxy "
-                    f"{proxy if proxy else 'No Proxy'}: {e}"
+                    f"Attempt {attempts} for {url} failed: {e}"
                 )
         if not success:
             st.warning(f"Failed to process {url} after {max_attempts} attempts.")
