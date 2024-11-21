@@ -5,3 +5,4 @@ openai
 python-docx
 google-search-results
 html2docx
+free-proxy
