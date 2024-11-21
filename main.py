@@ -145,7 +145,7 @@ def highlight_differences(original_html, recommendations):
     # Use AI recommendations as new content
     new_content = recommendations
 
-    # Split texts into lines
+    # Split texts into lines and remove empty lines
     original_lines = [line.strip() for line in original_text.split('\n') if line.strip()]
     new_lines = [line.strip() for line in new_content.split('\n') if line.strip()]
 
@@ -155,7 +155,7 @@ def highlight_differences(original_html, recommendations):
     # Apply changes to the original soup
     for line in diff:
         if line.startswith('- '):
-            # Find the text in the original HTML and apply strikethrough
+            # Deletion
             text_to_find = line[2:].strip()
             tag = soup_original.find(string=lambda text: text and text.strip() == text_to_find)
             if tag:
@@ -163,7 +163,7 @@ def highlight_differences(original_html, recommendations):
                 del_tag.string = tag
                 tag.replace_with(del_tag)
         elif line.startswith('+ '):
-            # Insert additions at the end of the body
+            # Addition
             text_to_add = line[2:].strip()
             new_tag = soup_original.new_tag('span', style="color:red;")
             new_tag.string = text_to_add
