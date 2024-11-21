@@ -181,35 +181,47 @@ Instructions:
 
 Format:
 
-Meta Title Recommendation:
+Provide your recommendations in the following format:
+
+**Meta Title Recommendation:**
 [Your recommendation here]
 
-Meta Description Recommendation:
+**Meta Description Recommendation:**
 [Your recommendation here]
 
-H1 Tag Recommendation:
+**H1 Tag Recommendation:**
 [Your recommendation here]
 
-Content Recommendations:
+**Content Recommendations:**
 
 For each recommendation:
 
-Recommendation #X:
-- New Section Heading: [Suggested heading title]
-- Heading Level: [H2/H3/H4]
-- Placement: [Where to insert in the existing structure]
-- Content Description: [Brief description of what to include]
+---
+
+**Recommendation #[X]:**
+
+- **New Section Heading:** [Suggested heading title]
+- **Heading Level:** [H2/H3/H4]
+- **Placement:** [Where to insert in the existing structure]
+- **Content Description:** [Brief description of what to include]
+
+---
 
 If rearranging sections:
 
-Rearrangement Suggestion:
-- Current Section: [Existing heading]
-- New Position: [Where it should be moved]
-- Reason: [Why this improves the content flow]
+---
+
+**Rearrangement Suggestion:**
+
+- **Current Section:** [Existing heading]
+- **New Position:** [Where it should be moved]
+- **Reason:** [Why this improves the content flow]
+
+---
 
 Provide a final summary acknowledging if the content is comprehensive or noting any overall improvements.
 
-IMPORTANT: Do not include any additional text outside of the specified format. Do not use bullet points or leading hyphens in your output.
+IMPORTANT: Do not include any additional text outside of the specified format. Do not use bullet points or leading hyphens in your output. Use the headings and separators as shown in the format.
 """
 
     try:
@@ -233,50 +245,65 @@ def parse_recommendations(recommendations_text):
     lines = recommendations_text.strip().split('\n')
     section = None
     content_rec = {}
+    rearrangement_rec = {}
     for line in lines:
         line = line.strip()
-        if line.startswith('Meta Title Recommendation:'):
+        if line.startswith('**Meta Title Recommendation:**'):
             section = 'meta_title'
-            recommendations['meta_title'] = line.replace('Meta Title Recommendation:', '').strip()
-        elif line.startswith('Meta Description Recommendation:'):
+            recommendations['meta_title'] = ''
+        elif line.startswith('**Meta Description Recommendation:**'):
             section = 'meta_description'
-            recommendations['meta_description'] = line.replace('Meta Description Recommendation:', '').strip()
-        elif line.startswith('H1 Tag Recommendation:'):
+            recommendations['meta_description'] = ''
+        elif line.startswith('**H1 Tag Recommendation:**'):
             section = 'h1_tag'
-            recommendations['h1_tag'] = line.replace('H1 Tag Recommendation:', '').strip()
-        elif line.startswith('Content Recommendations:'):
+            recommendations['h1_tag'] = ''
+        elif line.startswith('**Content Recommendations:**'):
             section = 'content'
-        elif line.startswith('Recommendation #'):
+        elif line.startswith('---') and section == 'content':
             if content_rec:
                 recommendations['content'].append(content_rec)
-            content_rec = {'title': line, 'details': {}}
-        elif line.startswith('Rearrangement Suggestion:'):
+            content_rec = {}
+        elif line.startswith('**Recommendation #'):
+            content_rec['title'] = line.strip('**')
+        elif line.startswith('**Rearrangement Suggestion:**'):
             if content_rec:
                 recommendations['content'].append(content_rec)
-            content_rec = {'title': line, 'details': {}}
+                content_rec = {}
             section = 'rearrangement'
-        elif line.startswith('Provide a final summary'):
-            if content_rec:
-                if section == 'content':
-                    recommendations['content'].append(content_rec)
-                elif section == 'rearrangement':
-                    recommendations['rearrangements'].append(content_rec)
-            section = 'summary'
-        elif section == 'content' or section == 'rearrangement':
+            rearrangement_rec = {}
+        elif line.startswith('---') and section == 'rearrangement':
+            if rearrangement_rec:
+                recommendations['rearrangements'].append(rearrangement_rec)
+            rearrangement_rec = {}
+        elif section == 'meta_title':
+            recommendations['meta_title'] += line + ' '
+        elif section == 'meta_description':
+            recommendations['meta_description'] += line + ' '
+        elif section == 'h1_tag':
+            recommendations['h1_tag'] += line + ' '
+        elif section == 'content':
             if ': ' in line:
                 key, value = line.split(': ', 1)
-                content_rec['details'][key.strip()] = value.strip()
+                content_rec[key.strip('**')] = value.strip()
             else:
-                # Handle continuation lines
-                if content_rec and 'Content Description' in content_rec['details']:
-                    content_rec['details']['Content Description'] += ' ' + line
-        elif section == 'summary':
-            recommendations['summary'] += line + ' '
-    if content_rec and ('title' in content_rec):
-        if section == 'content':
-            recommendations['content'].append(content_rec)
+                # Continuation lines
+                if 'Content Description' in content_rec:
+                    content_rec['Content Description'] += ' ' + line
         elif section == 'rearrangement':
-            recommendations['rearrangements'].append(content_rec)
+            if ': ' in line:
+                key, value = line.split(': ', 1)
+                rearrangement_rec[key.strip('**')] = value.strip()
+            else:
+                if 'Reason' in rearrangement_rec:
+                    rearrangement_rec['Reason'] += ' ' + line
+        elif section == 'summary' or line.startswith('Provide a final summary'):
+            section = 'summary'
+            recommendations['summary'] += line + ' '
+    # Append any remaining recommendations
+    if content_rec:
+        recommendations['content'].append(content_rec)
+    if rearrangement_rec:
+        recommendations['rearrangements'].append(rearrangement_rec)
     return recommendations
 
 # Streamlit UI
@@ -330,7 +357,7 @@ if st.button("Optimize Content"):
 
                     if recommendations_text:
                         st.subheader("Detailed Recommendations:")
-                        st.text(recommendations_text)
+                        st.markdown(recommendations_text)
 
                         # Parse recommendations for Word document
                         recommendations = parse_recommendations(recommendations_text)
@@ -342,40 +369,39 @@ if st.button("Optimize Content"):
 
                         # Meta Title Recommendation
                         doc.add_heading("Meta Title Recommendation", level=2)
-                        doc.add_paragraph(recommendations['meta_title'])
+                        doc.add_paragraph(recommendations['meta_title'].strip())
 
                         # Meta Description Recommendation
                         doc.add_heading("Meta Description Recommendation", level=2)
-                        doc.add_paragraph(recommendations['meta_description'])
+                        doc.add_paragraph(recommendations['meta_description'].strip())
 
                         # H1 Tag Recommendation
                         doc.add_heading("H1 Tag Recommendation", level=2)
-                        doc.add_paragraph(recommendations['h1_tag'])
+                        doc.add_paragraph(recommendations['h1_tag'].strip())
 
                         # Content Recommendations
                         if recommendations['content']:
                             doc.add_heading("Content Recommendations", level=2)
                             for rec in recommendations['content']:
-                                doc.add_heading(rec.get('title', ''), level=3)
-                                details = rec.get('details', {})
-                                for key, value in details.items():
-                                    doc.add_heading(f"{key}:", level=4)
-                                    doc.add_paragraph(value)
-
+                                doc.add_heading(rec.get('title', '').strip('**'), level=3)
+                                for key in ['New Section Heading', 'Heading Level', 'Placement', 'Content Description']:
+                                    if key in rec:
+                                        doc.add_heading(f"{key}:", level=4)
+                                        doc.add_paragraph(rec[key])
                         # Rearrangement Suggestions
                         if recommendations['rearrangements']:
                             doc.add_heading("Rearrangement Suggestions", level=2)
                             for rec in recommendations['rearrangements']:
-                                doc.add_heading(rec.get('title', ''), level=3)
-                                details = rec.get('details', {})
-                                for key, value in details.items():
-                                    doc.add_heading(f"{key}:", level=4)
-                                    doc.add_paragraph(value)
+                                doc.add_heading(rec.get('title', '').strip('**'), level=3)
+                                for key in ['Current Section', 'New Position', 'Reason']:
+                                    if key in rec:
+                                        doc.add_heading(f"{key}:", level=4)
+                                        doc.add_paragraph(rec[key])
 
                         # Final Summary
                         if recommendations['summary']:
                             doc.add_heading("Final Summary", level=2)
-                            doc.add_paragraph(recommendations['summary'])
+                            doc.add_paragraph(recommendations['summary'].strip())
 
                         # Create a BytesIO buffer and save the docx content
                         bio = BytesIO()
