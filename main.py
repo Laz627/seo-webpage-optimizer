@@ -171,8 +171,7 @@ Instructions:
 3. For each identified area:
    - Recommend new sections to add.
    - Specify where to place them within the existing content structure.
-   - Indicate the appropriate heading level (H2/H3/H4).
-   - Provide a suggested heading title.
+   - Combine the heading level and new section heading into one line, e.g., "New H2 Section Heading: Noise Reduction Comparison".
    - Briefly describe what content should be included under each new section.
 4. If rearranging existing sections would improve content flow, provide specific suggestions.
 5. If the original content is already comprehensive, acknowledge that but suggest any minor improvements if applicable.
@@ -200,8 +199,7 @@ For each recommendation:
 
 **Recommendation #[X]:**
 
-- **New Section Heading:** [Suggested heading title]
-- **Heading Level:** [H2/H3/H4]
+- **New Section Heading:** [Combined heading level and heading title]
 - **Placement:** [Where to insert in the existing structure]
 - **Content Description:** [Brief description of what to include]
 
@@ -226,7 +224,7 @@ IMPORTANT: Do not include any additional text outside of the specified format. D
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
                 {"role": "user", "content": prompt}
@@ -299,6 +297,9 @@ def parse_recommendations(recommendations_text):
         elif section == 'summary' or line.startswith('Provide a final summary'):
             section = 'summary'
             recommendations['summary'] += line + ' '
+        else:
+            if section == 'summary':
+                recommendations['summary'] += line + ' '
     # Append any remaining recommendations
     if content_rec:
         recommendations['content'].append(content_rec)
@@ -384,10 +385,14 @@ if st.button("Optimize Content"):
                             doc.add_heading("Content Recommendations", level=2)
                             for rec in recommendations['content']:
                                 doc.add_heading(rec.get('title', '').strip('**'), level=3)
-                                for key in ['New Section Heading', 'Heading Level', 'Placement', 'Content Description']:
-                                    if key in rec:
-                                        doc.add_heading(f"{key}:", level=4)
-                                        doc.add_paragraph(rec[key])
+                                if 'New Section Heading' in rec:
+                                    doc.add_paragraph(rec['New Section Heading'])
+                                if 'Placement' in rec:
+                                    doc.add_heading("Placement:", level=4)
+                                    doc.add_paragraph(rec['Placement'])
+                                if 'Content Description' in rec:
+                                    doc.add_heading("Content Description:", level=4)
+                                    doc.add_paragraph(rec['Content Description'])
                         # Rearrangement Suggestions
                         if recommendations['rearrangements']:
                             doc.add_heading("Rearrangement Suggestions", level=2)
