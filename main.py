@@ -37,7 +37,10 @@ def extract_content_structure(html_content):
                 element.decompose()
 
         # Remove elements by common class and ID names related to navigation, sidebar, and footer
-        classes_ids_to_remove = ['nav', 'navigation', 'sidebar', 'footer', 'header', 'menu', 'breadcrumbs', 'breadcrumb', 'site-footer', 'site-header', 'widget', 'widgets', 'site-navigation', 'main-navigation', 'secondary-navigation', 'site-sidebar']
+        classes_ids_to_remove = ['nav', 'navigation', 'sidebar', 'footer', 'header', 'menu',
+                                 'breadcrumbs', 'breadcrumb', 'site-footer', 'site-header',
+                                 'widget', 'widgets', 'site-navigation', 'main-navigation',
+                                 'secondary-navigation', 'site-sidebar']
         for class_or_id in classes_ids_to_remove:
             for element in soup.find_all(attrs={'class': class_or_id}):
                 element.decompose()
@@ -89,7 +92,10 @@ def analyze_competitor_content(html_files):
                     element.decompose()
 
             # Remove elements by common class and ID names
-            classes_ids_to_remove = ['nav', 'navigation', 'sidebar', 'footer', 'header', 'menu', 'breadcrumbs', 'breadcrumb', 'site-footer', 'site-header', 'widget', 'widgets', 'site-navigation', 'main-navigation', 'secondary-navigation', 'site-sidebar']
+            classes_ids_to_remove = ['nav', 'navigation', 'sidebar', 'footer', 'header', 'menu',
+                                     'breadcrumbs', 'breadcrumb', 'site-footer', 'site-header',
+                                     'widget', 'widgets', 'site-navigation', 'main-navigation',
+                                     'secondary-navigation', 'site-sidebar']
             for class_or_id in classes_ids_to_remove:
                 for element in soup.find_all(attrs={'class': class_or_id}):
                     element.decompose()
@@ -145,26 +151,6 @@ def generate_detailed_recommendations(keyword, meta_title, meta_description, h1_
         competitor_meta_info += f"Competitor #{idx} H1 Tag: {comp['h1_text']}\n"
         competitor_headings_str = '\n'.join([f"{item['level']}: {item['text']}" for item in comp['headings']])
         competitor_meta_info += f"Competitor #{idx} Headings:\n{competitor_headings_str}\n\n"
-
-    prompt = f"""
-    [Insert the updated prompt here]
-    """
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5  # Lowered temperature for more focused output
-        )
-        output = response.choices[0].message.content
-        return output
-    except Exception as e:
-        st.error(f"Error generating recommendations:\n\n{str(e)}")
-        return None
-
 
     prompt = f"""
 You are an SEO content strategist.
@@ -232,6 +218,21 @@ Provide a final summary acknowledging if the content is comprehensive or noting 
 IMPORTANT: Use markdown syntax for bold text and horizontal lines. Present the recommendations as clear, actionable items. Do not include any extraneous text or commentary.
 """
 
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5  # Lowered temperature for more focused output
+        )
+        output = response.choices[0].message.content
+        return output
+    except Exception as e:
+        st.error(f"Error generating recommendations:\n\n{str(e)}")
+        return None
+
 # Streamlit UI
 st.write("Enter your API key and target keyword below:")
 
@@ -284,7 +285,7 @@ if st.button("Optimize Content"):
                     if recommendations_text:
                         st.subheader("Detailed Recommendations:")
                         # Display recommendations with proper formatting
-                        st.markdown(recommendations_text, unsafe_allow_html=True)
+                        st.markdown(recommendations_text)
                     else:
                         st.error("Failed to generate recommendations. Please try again.")
             except Exception as e:
