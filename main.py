@@ -232,20 +232,20 @@ if st.button("Optimize Content"):
 
                         # Incorporate recommendations into original HTML
                         modified_html = highlight_differences(html_content, optimized_structure)
-                        
+
                         # Debug: Output the modified HTML to check if it's valid
                         st.subheader("Modified HTML Content:")
                         st.code(modified_html, language='html')
-                        
+
                         # Convert modified HTML to Word document
                         doc = convert_html_to_docx(modified_html)
-                        
+
                         if doc:
                             # Create a BytesIO buffer and save the docx content
                             bio = BytesIO()
                             doc.save(bio)
                             bio.seek(0)
-                        
+
                             st.download_button(
                                 label="Download Updated Content",
                                 data=bio,
@@ -254,3 +254,9 @@ if st.button("Optimize Content"):
                             )
                         else:
                             st.error("Failed to convert modified HTML to a Word document.")
+                    else:
+                        st.error("Failed to generate optimized structure. Please try again.")
+            except Exception as e:
+                st.error(f"Error processing files: {str(e)}")
+    else:
+        st.error("Please enter your API key, target keyword, and upload your HTML files to proceed.")
