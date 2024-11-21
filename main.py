@@ -167,7 +167,8 @@ Instructions:
 2. Identify important topics or subtopics in the competitor headings that are missing or underdeveloped in the original content.
 3. For each identified area:
    - Provide a specific action heading that describes what needs to be done, replacing "Recommendation" with the action.
-   - Combine the action, heading level, and new section heading into one line, e.g., "New Section Heading: H3: The Energy Efficiency of Triple Pane vs Double Pane Windows".
+   - Combine the action, heading level, and new section heading into one line, using markdown syntax, e.g., "**New Section Heading:** H3: The Energy Efficiency of Triple Pane vs Double Pane Windows".
+   - Use markdown formatting for headings and separators.
    - Specify where to place the new section within the existing content structure.
    - Briefly describe what content should be included under each new section.
 4. If rearranging existing sections would improve content flow, provide specific suggestions using the same format.
@@ -177,16 +178,22 @@ Instructions:
 
 Format:
 
-Provide your recommendations in the following format:
+Provide your recommendations in the following format, using markdown syntax:
 
 **Meta Title Recommendation:**
-[Your recommendation here]
+Your recommendation here
+
+---
 
 **Meta Description Recommendation:**
-[Your recommendation here]
+Your recommendation here
+
+---
 
 **H1 Tag Recommendation:**
-[Your recommendation here]
+Your recommendation here
+
+---
 
 **Content Recommendations:**
 
@@ -194,21 +201,21 @@ For each recommendation:
 
 ---
 
-[Action Heading]
+**[Action Heading]**
 
-- **Placement:** [Where to insert in the existing structure]
-- **Content Description:** [Brief description of what to include]
+- **Placement:** Where to insert in the existing structure
+- **Content Description:** Brief description of what to include
 
 ---
 
 Provide a final summary acknowledging if the content is comprehensive or noting any overall improvements.
 
-IMPORTANT: Do not include any additional text outside of the specified format. Do not use bullet points or leading hyphens in your output. Use the headings and separators as shown in the format.
+IMPORTANT: Ensure that you use markdown syntax for bold text and horizontal lines. Do not include any additional text outside of the specified format. Do not use bullet points or leading hyphens in your output. Use the headings and separators as shown in the format.
 """
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
                 {"role": "user", "content": prompt}
@@ -273,7 +280,7 @@ if st.button("Optimize Content"):
                     if recommendations_text:
                         st.subheader("Detailed Recommendations:")
                         # Display recommendations with proper formatting
-                        st.markdown(recommendations_text)
+                        st.markdown(recommendations_text, unsafe_allow_html=True)
                     else:
                         st.error("Failed to generate recommendations. Please try again.")
             except Exception as e:
