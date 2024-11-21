@@ -2,4 +2,3 @@ streamlit
 beautifulsoup4
 openai
 python-docx
-html2docx
