@@ -215,7 +215,7 @@ IMPORTANT: Ensure that you use markdown syntax for bold text and horizontal line
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
                 {"role": "user", "content": prompt}
