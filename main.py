@@ -37,7 +37,7 @@ def extract_content_structure(html_content):
         content_structure = []
         for header in soup.find_all(['h2', 'h3', 'h4']):
             header_text = header.get_text(strip=True)
-            header_level = header.name
+            header_level = header.name.upper()
             content_structure.append({'level': header_level, 'text': header_text})
         return content_structure
     except Exception as e:
@@ -57,7 +57,7 @@ def analyze_competitor_content(html_files):
             headings = []
             for header in soup.find_all(['h2', 'h3', 'h4']):
                 header_text = header.get_text(strip=True)
-                header_level = header.name
+                header_level = header.name.upper()
                 headings.append({'level': header_level, 'text': header_text})
             all_headings.extend(headings)
         except Exception as e:
@@ -98,22 +98,22 @@ Format:
 
 For each recommendation:
 
-- **Recommendation #X**:
-  - **New Section Heading**: [Suggested heading title]
-  - **Heading Level**: [H2/H3/H4]
-  - **Placement**: [Where to insert in the existing structure]
-  - **Content Description**: [Brief description of what to include]
+Recommendation #X:
+- New Section Heading: [Suggested heading title]
+- Heading Level: [H2/H3/H4]
+- Placement: [Where to insert in the existing structure]
+- Content Description: [Brief description of what to include]
 
 If rearranging sections:
 
-- **Rearrangement Suggestion**:
-  - **Current Section**: [Existing heading]
-  - **New Position**: [Where it should be moved]
-  - **Reason**: [Why this improves the content flow]
+Rearrangement Suggestion:
+- Current Section: [Existing heading]
+- New Position: [Where it should be moved]
+- Reason: [Why this improves the content flow]
 
 Provide a final summary acknowledging if the content is comprehensive or noting any overall improvements.
 
-IMPORTANT: Do not include any additional text outside of the specified format.
+IMPORTANT: Do not include any additional text outside of the specified format. Do not use bullet points or leading hyphens in your output.
 """
 
     try:
@@ -130,6 +130,27 @@ IMPORTANT: Do not include any additional text outside of the specified format.
     except Exception as e:
         st.error(f"Error generating recommendations:\n\n{str(e)}")
         return None
+
+def parse_recommendations(recommendations_text):
+    recommendations = []
+    current_recommendation = {}
+    lines = recommendations_text.strip().split('\n')
+    for line in lines:
+        line = line.strip()
+        if line.startswith('Recommendation #'):
+            if current_recommendation:
+                recommendations.append(current_recommendation)
+            current_recommendation = {'title': line}
+        elif ': ' in line:
+            key, value = line.split(': ', 1)
+            current_recommendation[key.strip()] = value.strip()
+        else:
+            # Handle continuation lines
+            if 'Content Description' in current_recommendation:
+                current_recommendation['Content Description'] += ' ' + line
+    if current_recommendation:
+        recommendations.append(current_recommendation)
+    return recommendations
 
 # Streamlit UI
 st.write("Enter your API key and target keyword below:")
@@ -166,35 +187,55 @@ if st.button("Optimize Content"):
                     # Analyze competitor content
                     competitor_headings = analyze_competitor_content(uploaded_competitor_files)
 
+                    # Prepare data for the prompt
+                    user_structure_str = '\n'.join([f"{item['level']}: {item['text']}" for item in user_structure])
+                    competitor_headings_str = '\n'.join([f"{item['level']}: {item['text']}" for item in competitor_headings])
+
                     # Generate detailed recommendations
-                    recommendations = generate_detailed_recommendations(
+                    recommendations_text = generate_detailed_recommendations(
                         keyword=keyword,
-                        user_structure=user_structure,
-                        competitor_headings=competitor_headings,
+                        user_structure=user_structure_str,
+                        competitor_headings=competitor_headings_str,
                         api_key=openai_api_key
                     )
 
-                    if recommendations:
+                    if recommendations_text:
                         st.subheader("Detailed Recommendations:")
-                        st.text(recommendations)
+                        st.text(recommendations_text)
+
+                        # Parse recommendations for Word document
+                        recommendations = parse_recommendations(recommendations_text)
 
                         # Create a Word document with the recommendations
                         doc = Document()
                         doc.add_heading("Content Optimization Recommendations", level=1)
                         doc.add_paragraph(f"Keyword: {keyword}")
 
-                        for line in recommendations.split('\n'):
-                            if line.strip() == '':
-                                continue  # Skip empty lines
-                            if line.startswith('- **Recommendation'):
-                                doc.add_heading(line[2:].strip(), level=2)
-                            elif line.startswith('  - **'):
-                                if 'New Section Heading' in line:
-                                    doc.add_heading(line[4:].strip(), level=3)
-                                else:
-                                    doc.add_paragraph(line[4:].strip(), style='List Bullet')
-                            else:
-                                doc.add_paragraph(line)
+                        for rec in recommendations:
+                            doc.add_heading(rec.get('title', ''), level=2)
+                            new_section_heading = rec.get('New Section Heading', '')
+                            heading_level = rec.get('Heading Level', '')
+                            placement = rec.get('Placement', '')
+                            content_description = rec.get('Content Description', '')
+
+                            if new_section_heading:
+                                doc.add_heading("New Section Heading:", level=3)
+                                doc.add_paragraph(new_section_heading)
+                            if heading_level:
+                                doc.add_heading("Heading Level:", level=3)
+                                doc.add_paragraph(heading_level)
+                            if placement:
+                                doc.add_heading("Placement:", level=3)
+                                doc.add_paragraph(placement)
+                            if content_description:
+                                doc.add_heading("Content Description:", level=3)
+                                doc.add_paragraph(content_description)
+                        
+                        # Check for final summary
+                        if 'Provide a final summary' in recommendations_text:
+                            summary = recommendations_text.split('Provide a final summary')[-1].strip()
+                            doc.add_heading("Final Summary", level=2)
+                            doc.add_paragraph(summary)
 
                         # Create a BytesIO buffer and save the docx content
                         bio = BytesIO()
