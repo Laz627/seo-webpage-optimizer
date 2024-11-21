@@ -1,6 +1,6 @@
 import streamlit as st
 from bs4 import BeautifulSoup
-import openai
+from openai import OpenAI
 from docx import Document
 from io import BytesIO
 
@@ -38,6 +38,9 @@ def extract_headings_and_text(html_content):
         for tag in ['h2', 'h3', 'h4']:
             for element in soup.find_all(tag):
                 headings.append((tag, element.get_text(strip=True)))
+            # Remove the headings from the soup to prevent duplication
+            for h in soup.find_all(tag):
+                h.decompose()
         paragraphs = [p.get_text(strip=True) for p in soup.find_all('p')]
         return headings, paragraphs
     except Exception as e:
@@ -77,7 +80,7 @@ def analyze_headings(all_headings):
     return analysis
 
 def generate_optimized_structure(keyword, heading_analysis, api_key):
-    openai.api_key = api_key
+    client = OpenAI(api_key=api_key)
 
     prompt = f"""
 Generate an optimized heading structure for a content brief on the keyword: "{keyword}"
@@ -112,8 +115,8 @@ Repeat this structure as needed, ensuring a logical flow of information that bes
 """
 
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are an SEO expert creating optimized, user-focused content outlines for any given topic. Do not use markdown syntax in your output."},
                 {"role": "user", "content": prompt}
@@ -124,7 +127,7 @@ Repeat this structure as needed, ensuring a logical flow of information that bes
         output = output.replace('#', '').replace('*', '').replace('_', '')
         return output
     except Exception as e:
-        st.error(f"Error generating optimized structure: {str(e)}")
+        st.error(f"Error generating optimized structure:\n\n{str(e)}")
         return None
 
 # Streamlit UI
