@@ -1,9 +1,8 @@
 import streamlit as st
 from bs4 import BeautifulSoup
-from openai import OpenAI
+import openai
 from docx import Document
 from io import BytesIO
-import difflib
 
 # Set page config
 st.set_page_config(page_title="Content Optimizer", layout="wide")
@@ -17,7 +16,7 @@ st.markdown("""
 3. **Input your target keyword.**
 4. **Upload competitor HTML files** for comparison.
 5. Click **'Optimize Content'** to analyze competitor pages and receive content recommendations.
-6. **Download the updated content** as a Word document with changes highlighted.
+6. **Download the optimized content** as a Word document.
 
 This tool helps you enhance your existing content by comparing it with competitor pages for your target keyword.
 """)
@@ -78,7 +77,7 @@ def analyze_headings(all_headings):
     return analysis
 
 def generate_optimized_structure(keyword, heading_analysis, api_key):
-    client = OpenAI(api_key=api_key)
+    openai.api_key = api_key
 
     prompt = f"""
 Generate an optimized heading structure for a content brief on the keyword: "{keyword}"
@@ -113,8 +112,8 @@ Repeat this structure as needed, ensuring a logical flow of information that bes
 """
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are an SEO expert creating optimized, user-focused content outlines for any given topic. Do not use markdown syntax in your output."},
                 {"role": "user", "content": prompt}
@@ -126,61 +125,6 @@ Repeat this structure as needed, ensuring a logical flow of information that bes
         return output
     except Exception as e:
         st.error(f"Error generating optimized structure: {str(e)}")
-        return None
-
-def highlight_differences(original_html, recommendations):
-    # Parse the original HTML
-    soup_original = BeautifulSoup(original_html, 'html.parser')
-
-    # Ensure the soup has a body
-    if not soup_original.body:
-        # Create a new body tag and wrap the entire content
-        new_body = soup_original.new_tag('body')
-        new_body.append(soup_original)
-        soup_original.insert(0, new_body)
-
-    # Extract text from original HTML
-    original_text = soup_original.get_text(separator='\n')
-
-    # Use AI recommendations as new content
-    new_content = recommendations
-
-    # Split texts into lines and remove empty lines
-    original_lines = [line.strip() for line in original_text.split('\n') if line.strip()]
-    new_lines = [line.strip() for line in new_content.split('\n') if line.strip()]
-
-    # Compute diff
-    diff = list(difflib.ndiff(original_lines, new_lines))
-
-    # Apply changes to the original soup
-    for line in diff:
-        if line.startswith('- '):
-            # Deletion
-            text_to_find = line[2:].strip()
-            tag = soup_original.find(string=lambda text: text and text.strip() == text_to_find)
-            if tag:
-                del_tag = soup_original.new_tag('del', style="color:red;")
-                del_tag.string = tag
-                tag.replace_with(del_tag)
-        elif line.startswith('+ '):
-            # Addition
-            text_to_add = line[2:].strip()
-            new_tag = soup_original.new_tag('span', style="color:red;")
-            new_tag.string = text_to_add
-            soup_original.body.append(new_tag)
-            soup_original.body.append(soup_original.new_tag('br'))
-
-    # Return modified HTML
-    return str(soup_original)
-
-def convert_html_to_docx(html_content):
-    from html2docx import html2docx
-    doc = Document()
-    try:
-        html2docx(html_content, doc)
-        return doc
-    except Exception as e:
-        st.error(f"Error converting HTML to Docx: {str(e)}")
         return None
 
 # Streamlit UI
@@ -230,30 +174,34 @@ if st.button("Optimize Content"):
                         st.subheader("Optimized Content Structure:")
                         st.text(optimized_structure)
 
-                        # Incorporate recommendations into original HTML
-                        modified_html = highlight_differences(html_content, optimized_structure)
+                        # Create a Word document with the optimized structure
+                        doc = Document()
+                        # Add the optimized structure to the document
+                        for line in optimized_structure.split('\n'):
+                            if line.strip() == '':
+                                continue  # Skip empty lines
+                            if line.startswith('H2:'):
+                                doc.add_heading(line[3:].strip(), level=2)
+                            elif line.startswith('H3:'):
+                                doc.add_heading(line[3:].strip(), level=3)
+                            elif line.startswith('H4:'):
+                                doc.add_heading(line[3:].strip(), level=4)
+                            elif line.startswith('-'):
+                                doc.add_paragraph(line[1:].strip(), style='List Bullet')
+                            else:
+                                doc.add_paragraph(line)
 
-                        # Debug: Output the modified HTML to check if it's valid
-                        st.subheader("Modified HTML Content:")
-                        st.code(modified_html, language='html')
+                        # Create a BytesIO buffer and save the docx content
+                        bio = BytesIO()
+                        doc.save(bio)
+                        bio.seek(0)
 
-                        # Convert modified HTML to Word document
-                        doc = convert_html_to_docx(modified_html)
-
-                        if doc:
-                            # Create a BytesIO buffer and save the docx content
-                            bio = BytesIO()
-                            doc.save(bio)
-                            bio.seek(0)
-
-                            st.download_button(
-                                label="Download Updated Content",
-                                data=bio,
-                                file_name=f"updated_content_{keyword.replace(' ', '_')}.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                            )
-                        else:
-                            st.error("Failed to convert modified HTML to a Word document.")
+                        st.download_button(
+                            label="Download Optimized Structure",
+                            data=bio,
+                            file_name=f"optimized_structure_{keyword.replace(' ', '_')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
                     else:
                         st.error("Failed to generate optimized structure. Please try again.")
             except Exception as e:
