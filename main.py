@@ -19,6 +19,8 @@ st.markdown("""
 6. **Download the recommendations** as a Word document.
 
 This tool provides specific recommendations on how to enhance your content based on competitor analysis, including new sections to add, where to place them, the appropriate heading levels, and suggestions for your meta title, meta description, and H1 tag based on SEO best practices.
+
+**Note:** The script ignores irrelevant content such as menu navigation links, footer links, and anchor text not part of the main content.
 """)
 
 # Initialize session state
@@ -30,20 +32,45 @@ if 'keyword' not in st.session_state:
 def extract_content_structure(html_content):
     try:
         soup = BeautifulSoup(html_content, "html.parser")
+
+        # Remove navigation and footer elements
+        tags_to_remove = ['script', 'style', 'noscript', 'header', 'footer', 'nav', 'aside']
+        for tag in tags_to_remove:
+            for element in soup.find_all(tag):
+                element.decompose()
+
+        # Remove elements by common class and ID names related to navigation, sidebar, and footer
+        classes_ids_to_remove = ['nav', 'navigation', 'sidebar', 'footer', 'header', 'menu', 'breadcrumbs', 'breadcrumb', 'site-footer', 'site-header', 'widget', 'widgets', 'site-navigation', 'main-navigation', 'secondary-navigation', 'site-sidebar']
+        for class_or_id in classes_ids_to_remove:
+            for element in soup.find_all(attrs={'class': class_or_id}):
+                element.decompose()
+            for element in soup.find_all(attrs={'id': class_or_id}):
+                element.decompose()
+
         # Extract meta title and description
-        meta_title = soup.title.string if soup.title else ''
+        meta_title = soup.title.string.strip() if soup.title else ''
         meta_description_tag = soup.find('meta', attrs={'name': 'description'})
-        meta_description = meta_description_tag['content'] if meta_description_tag else ''
+        meta_description = meta_description_tag['content'].strip() if meta_description_tag else ''
         # Extract H1 tag
         h1_tag = soup.find('h1')
-        h1_text = h1_tag.get_text(strip=True) if h1_tag else ''
-        # Remove scripts and styles
+        h1_text = h1_tag.get_text(separator=' ', strip=True) if h1_tag else ''
+
+        # Remove any remaining scripts and styles
         for element in soup(['script', 'style', 'noscript']):
             element.decompose()
+
         # Extract headings and their hierarchy
         content_structure = []
         for header in soup.find_all(['h2', 'h3', 'h4']):
-            header_text = header.get_text(strip=True)
+            # Exclude headings within navigation elements
+            if header.find_parent(['nav', 'header', 'footer', 'aside']):
+                continue
+            if 'class' in header.attrs and any(cls in classes_ids_to_remove for cls in header.get('class', [])):
+                continue
+            if 'id' in header.attrs and header['id'] in classes_ids_to_remove:
+                continue
+
+            header_text = header.get_text(separator=' ', strip=True)
             header_level = header.name.upper()
             content_structure.append({'level': header_level, 'text': header_text})
         return meta_title, meta_description, h1_text, content_structure
@@ -57,20 +84,45 @@ def analyze_competitor_content(html_files):
         try:
             html_content = file.read().decode('utf-8')
             soup = BeautifulSoup(html_content, "html.parser")
+
+            # Remove navigation and footer elements
+            tags_to_remove = ['script', 'style', 'noscript', 'header', 'footer', 'nav', 'aside']
+            for tag in tags_to_remove:
+                for element in soup.find_all(tag):
+                    element.decompose()
+
+            # Remove elements by common class and ID names
+            classes_ids_to_remove = ['nav', 'navigation', 'sidebar', 'footer', 'header', 'menu', 'breadcrumbs', 'breadcrumb', 'site-footer', 'site-header', 'widget', 'widgets', 'site-navigation', 'main-navigation', 'secondary-navigation', 'site-sidebar']
+            for class_or_id in classes_ids_to_remove:
+                for element in soup.find_all(attrs={'class': class_or_id}):
+                    element.decompose()
+                for element in soup.find_all(attrs={'id': class_or_id}):
+                    element.decompose()
+
             # Extract meta title and description
-            meta_title = soup.title.string if soup.title else ''
+            meta_title = soup.title.string.strip() if soup.title else ''
             meta_description_tag = soup.find('meta', attrs={'name': 'description'})
-            meta_description = meta_description_tag['content'] if meta_description_tag else ''
+            meta_description = meta_description_tag['content'].strip() if meta_description_tag else ''
             # Extract H1 tag
             h1_tag = soup.find('h1')
-            h1_text = h1_tag.get_text(strip=True) if h1_tag else ''
-            # Remove scripts and styles
+            h1_text = h1_tag.get_text(separator=' ', strip=True) if h1_tag else ''
+
+            # Remove any remaining scripts and styles
             for element in soup(['script', 'style', 'noscript']):
                 element.decompose()
+
             # Extract headings
             headings = []
             for header in soup.find_all(['h2', 'h3', 'h4']):
-                header_text = header.get_text(strip=True)
+                # Exclude headings within navigation elements
+                if header.find_parent(['nav', 'header', 'footer', 'aside']):
+                    continue
+                if 'class' in header.attrs and any(cls in classes_ids_to_remove for cls in header.get('class', [])):
+                    continue
+                if 'id' in header.attrs and header['id'] in classes_ids_to_remove:
+                    continue
+
+                header_text = header.get_text(separator=' ', strip=True)
                 header_level = header.name.upper()
                 headings.append({'level': header_level, 'text': header_text})
             competitor_data = {
@@ -162,7 +214,7 @@ IMPORTANT: Do not include any additional text outside of the specified format. D
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
                 {"role": "user", "content": prompt}
@@ -199,9 +251,16 @@ def parse_recommendations(recommendations_text):
                 recommendations['content'].append(content_rec)
             content_rec = {'title': line, 'details': {}}
         elif line.startswith('Rearrangement Suggestion:'):
-            section = 'rearrangement'
+            if content_rec:
+                recommendations['content'].append(content_rec)
             content_rec = {'title': line, 'details': {}}
-        elif line == 'Provide a final summary acknowledging if the content is comprehensive or noting any overall improvements.':
+            section = 'rearrangement'
+        elif line.startswith('Provide a final summary'):
+            if content_rec:
+                if section == 'content':
+                    recommendations['content'].append(content_rec)
+                elif section == 'rearrangement':
+                    recommendations['rearrangements'].append(content_rec)
             section = 'summary'
         elif section == 'content' or section == 'rearrangement':
             if ': ' in line:
