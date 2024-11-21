@@ -146,25 +146,22 @@ def highlight_differences(original_html, recommendations):
     new_content = recommendations
 
     # Split texts into lines
-    original_lines = original_text.split('\n')
-    new_lines = new_content.split('\n')
+    original_lines = [line.strip() for line in original_text.split('\n') if line.strip()]
+    new_lines = [line.strip() for line in new_content.split('\n') if line.strip()]
 
     # Compute diff
-    diff = list(difflib.unified_diff(original_lines, new_lines, lineterm=''))
+    diff = list(difflib.ndiff(original_lines, new_lines))
 
     # Apply changes to the original soup
     for line in diff:
-        if line.startswith('---') or line.startswith('+++') or line.startswith('@@'):
-            continue
-        elif line.startswith('- '):
+        if line.startswith('- '):
             # Find the text in the original HTML and apply strikethrough
             text_to_find = line[2:].strip()
             tag = soup_original.find(string=lambda text: text and text.strip() == text_to_find)
             if tag:
-                parent = tag.parent
                 del_tag = soup_original.new_tag('del', style="color:red;")
                 del_tag.string = tag
-                parent.string.replace_with(del_tag)
+                tag.replace_with(del_tag)
         elif line.startswith('+ '):
             # Insert additions at the end of the body
             text_to_add = line[2:].strip()
