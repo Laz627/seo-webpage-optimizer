@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import difflib
 import openai
+from openai import OpenAI
 from docx import Document
 from docx.shared import RGBColor
 from docx.shared import Pt
@@ -80,7 +80,9 @@ def analyze_competitor_content(urls):
         try:
             time.sleep(random.uniform(1, 3))  # Random delay
             headers = {
-                "User-Agent": "Mozilla/5.0"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                              " AppleWebKit/537.36 (KHTML, like Gecko)"
+                              " Chrome/92.0.4515.159 Safari/537.36"
             }
             response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
@@ -90,12 +92,12 @@ def analyze_competitor_content(urls):
                 element.decompose()
             # Extract headings
             headings = {
-                "h2": [h.text.strip() for h in soup.find_all("h2") if h.text.strip()],
-                "h3": [h.text.strip() for h in soup.find_all("h3") if h.text.strip()],
-                "h4": [h.text.strip() for h in soup.find_all("h4") if h.text.strip()]
+                "h2": [h.get_text(strip=True) for h in soup.find_all("h2")],
+                "h3": [h.get_text(strip=True) for h in soup.find_all("h3")],
+                "h4": [h.get_text(strip=True) for h in soup.find_all("h4")]
             }
             all_headings.append(headings)
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             st.warning(f"Error processing {url}: {str(e)}")
             continue
     return all_headings
@@ -112,8 +114,8 @@ def analyze_headings(all_headings):
     return analysis
 
 def generate_optimized_structure(keyword, heading_analysis, api_key):
-    openai.api_key = api_key
-    
+    client = OpenAI(api_key=api_key)
+
     prompt = f"""
 Generate an optimized heading structure for a content brief on the keyword: "{keyword}"
 
@@ -147,7 +149,7 @@ Repeat this structure as needed, ensuring a logical flow of information that bes
 """
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are an SEO expert creating optimized, user-focused content outlines for any given topic. Do not use markdown syntax in your output."},
@@ -155,8 +157,7 @@ Repeat this structure as needed, ensuring a logical flow of information that bes
             ],
             temperature=0.7
         )
-        # Clean the output to remove any markdown that might have slipped through
-        output = response['choices'][0]['message']['content']
+        output = response.choices[0].message.content
         output = output.replace('#', '').replace('*', '').replace('_', '')
         return output
     except Exception as e:
@@ -201,11 +202,8 @@ def create_word_document(keyword, optimized_structure, original_headings):
         line = lines[i].strip()
         if line.startswith('H2:'):
             heading_text = line[3:].strip()
-            if heading_text in existing_headings:
-                p = doc.add_paragraph(f"{heading_text}", style='H2')
-            else:
-                p = doc.add_paragraph(f"{heading_text}", style='H2')
-                # Highlight new headings in red
+            p = doc.add_paragraph(heading_text, style='H2')
+            if heading_text not in existing_headings:
                 p.runs[0].font.color.rgb = RGBColor(255, 0, 0)
             i += 1
             # Add content for H2
@@ -216,10 +214,8 @@ def create_word_document(keyword, optimized_structure, original_headings):
                 i += 1
         elif line.startswith('H3:'):
             heading_text = line[3:].strip()
-            if heading_text in existing_headings:
-                p = doc.add_paragraph(f"{heading_text}", style='H3')
-            else:
-                p = doc.add_paragraph(f"{heading_text}", style='H3')
+            p = doc.add_paragraph(heading_text, style='H3')
+            if heading_text not in existing_headings:
                 p.runs[0].font.color.rgb = RGBColor(255, 0, 0)
             i += 1
             # Add content for H3
@@ -230,10 +226,8 @@ def create_word_document(keyword, optimized_structure, original_headings):
                 i += 1
         elif line.startswith('H4:'):
             heading_text = line[3:].strip()
-            if heading_text in existing_headings:
-                p = doc.add_paragraph(f"{heading_text}", style='H4')
-            else:
-                p = doc.add_paragraph(f"{heading_text}", style='H4')
+            p = doc.add_paragraph(heading_text, style='H4')
+            if heading_text not in existing_headings:
                 p.runs[0].font.color.rgb = RGBColor(255, 0, 0)
             i += 1
             # Add content for H4
