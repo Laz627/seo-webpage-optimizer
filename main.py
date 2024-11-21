@@ -18,7 +18,7 @@ st.markdown("""
 5. Click **'Optimize Content'** to analyze competitor pages and receive content recommendations.
 6. **Download the recommendations** as a Word document.
 
-This tool provides specific recommendations on how to enhance your content based on competitor analysis, including new sections to add, where to place them, and the appropriate heading levels.
+This tool provides specific recommendations on how to enhance your content based on competitor analysis, including new sections to add, where to place them, the appropriate heading levels, and suggestions for your meta title, meta description, and H1 tag based on SEO best practices.
 """)
 
 # Initialize session state
@@ -30,6 +30,13 @@ if 'keyword' not in st.session_state:
 def extract_content_structure(html_content):
     try:
         soup = BeautifulSoup(html_content, "html.parser")
+        # Extract meta title and description
+        meta_title = soup.title.string if soup.title else ''
+        meta_description_tag = soup.find('meta', attrs={'name': 'description'})
+        meta_description = meta_description_tag['content'] if meta_description_tag else ''
+        # Extract H1 tag
+        h1_tag = soup.find('h1')
+        h1_text = h1_tag.get_text(strip=True) if h1_tag else ''
         # Remove scripts and styles
         for element in soup(['script', 'style', 'noscript']):
             element.decompose()
@@ -39,10 +46,10 @@ def extract_content_structure(html_content):
             header_text = header.get_text(strip=True)
             header_level = header.name.upper()
             content_structure.append({'level': header_level, 'text': header_text})
-        return content_structure
+        return meta_title, meta_description, h1_text, content_structure
     except Exception as e:
         st.warning(f"Error extracting content structure: {str(e)}")
-        return []
+        return '', '', '', []
 
 def analyze_competitor_content(html_files):
     all_headings = []
@@ -50,6 +57,13 @@ def analyze_competitor_content(html_files):
         try:
             html_content = file.read().decode('utf-8')
             soup = BeautifulSoup(html_content, "html.parser")
+            # Extract meta title and description
+            meta_title = soup.title.string if soup.title else ''
+            meta_description_tag = soup.find('meta', attrs={'name': 'description'})
+            meta_description = meta_description_tag['content'] if meta_description_tag else ''
+            # Extract H1 tag
+            h1_tag = soup.find('h1')
+            h1_text = h1_tag.get_text(strip=True) if h1_tag else ''
             # Remove scripts and styles
             for element in soup(['script', 'style', 'noscript']):
                 element.decompose()
@@ -59,42 +73,72 @@ def analyze_competitor_content(html_files):
                 header_text = header.get_text(strip=True)
                 header_level = header.name.upper()
                 headings.append({'level': header_level, 'text': header_text})
-            all_headings.extend(headings)
+            competitor_data = {
+                'meta_title': meta_title,
+                'meta_description': meta_description,
+                'h1_text': h1_text,
+                'headings': headings
+            }
+            all_headings.append(competitor_data)
         except Exception as e:
             st.warning(f"Error processing {file.name}: {e}")
             continue
     return all_headings
 
-def generate_detailed_recommendations(keyword, user_structure, competitor_headings, api_key):
+def generate_detailed_recommendations(keyword, meta_title, meta_description, h1_text, user_structure, competitor_data, api_key):
     client = OpenAI(api_key=api_key)
+
+    # Prepare competitor meta data
+    competitor_meta_info = ''
+    for idx, comp in enumerate(competitor_data, 1):
+        competitor_meta_info += f"Competitor #{idx} Meta Title: {comp['meta_title']}\n"
+        competitor_meta_info += f"Competitor #{idx} Meta Description: {comp['meta_description']}\n"
+        competitor_meta_info += f"Competitor #{idx} H1 Tag: {comp['h1_text']}\n"
+        competitor_headings_str = '\n'.join([f"{item['level']}: {item['text']}" for item in comp['headings']])
+        competitor_meta_info += f"Competitor #{idx} Headings:\n{competitor_headings_str}\n\n"
 
     prompt = f"""
 You are an SEO content strategist.
 
-Your task is to analyze the provided original content structure and competitor headings to generate specific recommendations for improvement.
+Your task is to analyze the provided original content structure, meta information, and competitor data to generate specific recommendations for improvement.
 
 - **Keyword**: "{keyword}"
+- **Original Meta Title**: {meta_title}
+- **Original Meta Description**: {meta_description}
+- **Original H1 Tag**: {h1_text}
 - **Original Content Structure**:
 {user_structure}
 
-- **Competitor Headings**:
-{competitor_headings}
+- **Competitor Meta Information and Headings**:
+{competitor_meta_info}
 
 Instructions:
 
-1. Identify important topics or subtopics in the competitor headings that are missing or underdeveloped in the original content.
-2. For each identified area:
+1. Analyze the original meta title, meta description, and H1 tag. Provide specific recommendations for improving each based on SEO best practices and the target keyword.
+2. Identify important topics or subtopics in the competitor headings that are missing or underdeveloped in the original content.
+3. For each identified area:
    - Recommend new sections to add.
    - Specify where to place them within the existing content structure.
-   - Indicate the appropriate heading level (H2, H3, H4).
+   - Indicate the appropriate heading level (H2/H3/H4).
    - Provide a suggested heading title.
    - Briefly describe what content should be included under each new section.
-3. If rearranging existing sections would improve content flow, provide specific suggestions.
-4. If the original content is already comprehensive, acknowledge that but suggest any minor improvements if applicable.
-5. Avoid using branded terms unless necessary.
-6. Present the recommendations clearly and in a structured format.
+4. If rearranging existing sections would improve content flow, provide specific suggestions.
+5. If the original content is already comprehensive, acknowledge that but suggest any minor improvements if applicable.
+6. Avoid using branded terms unless necessary.
+7. Present the recommendations clearly and in a structured format.
 
 Format:
+
+Meta Title Recommendation:
+[Your recommendation here]
+
+Meta Description Recommendation:
+[Your recommendation here]
+
+H1 Tag Recommendation:
+[Your recommendation here]
+
+Content Recommendations:
 
 For each recommendation:
 
@@ -132,24 +176,48 @@ IMPORTANT: Do not include any additional text outside of the specified format. D
         return None
 
 def parse_recommendations(recommendations_text):
-    recommendations = []
-    current_recommendation = {}
+    # Parse the recommendations into structured data
+    recommendations = {'meta_title': '', 'meta_description': '', 'h1_tag': '', 'content': [], 'rearrangements': [], 'summary': ''}
     lines = recommendations_text.strip().split('\n')
+    section = None
+    content_rec = {}
     for line in lines:
         line = line.strip()
-        if line.startswith('Recommendation #'):
-            if current_recommendation:
-                recommendations.append(current_recommendation)
-            current_recommendation = {'title': line}
-        elif ': ' in line:
-            key, value = line.split(': ', 1)
-            current_recommendation[key.strip()] = value.strip()
-        else:
-            # Handle continuation lines
-            if 'Content Description' in current_recommendation:
-                current_recommendation['Content Description'] += ' ' + line
-    if current_recommendation:
-        recommendations.append(current_recommendation)
+        if line.startswith('Meta Title Recommendation:'):
+            section = 'meta_title'
+            recommendations['meta_title'] = line.replace('Meta Title Recommendation:', '').strip()
+        elif line.startswith('Meta Description Recommendation:'):
+            section = 'meta_description'
+            recommendations['meta_description'] = line.replace('Meta Description Recommendation:', '').strip()
+        elif line.startswith('H1 Tag Recommendation:'):
+            section = 'h1_tag'
+            recommendations['h1_tag'] = line.replace('H1 Tag Recommendation:', '').strip()
+        elif line.startswith('Content Recommendations:'):
+            section = 'content'
+        elif line.startswith('Recommendation #'):
+            if content_rec:
+                recommendations['content'].append(content_rec)
+            content_rec = {'title': line, 'details': {}}
+        elif line.startswith('Rearrangement Suggestion:'):
+            section = 'rearrangement'
+            content_rec = {'title': line, 'details': {}}
+        elif line == 'Provide a final summary acknowledging if the content is comprehensive or noting any overall improvements.':
+            section = 'summary'
+        elif section == 'content' or section == 'rearrangement':
+            if ': ' in line:
+                key, value = line.split(': ', 1)
+                content_rec['details'][key.strip()] = value.strip()
+            else:
+                # Handle continuation lines
+                if content_rec and 'Content Description' in content_rec['details']:
+                    content_rec['details']['Content Description'] += ' ' + line
+        elif section == 'summary':
+            recommendations['summary'] += line + ' '
+    if content_rec and ('title' in content_rec):
+        if section == 'content':
+            recommendations['content'].append(content_rec)
+        elif section == 'rearrangement':
+            recommendations['rearrangements'].append(content_rec)
     return recommendations
 
 # Streamlit UI
@@ -181,21 +249,23 @@ if st.button("Optimize Content"):
                 if not html_content:
                     st.error("Uploaded HTML content is empty.")
                 else:
-                    # Extract content structure from user's content
-                    user_structure = extract_content_structure(html_content)
+                    # Extract content structure and meta info from user's content
+                    meta_title, meta_description, h1_text, user_structure = extract_content_structure(html_content)
 
                     # Analyze competitor content
-                    competitor_headings = analyze_competitor_content(uploaded_competitor_files)
+                    competitor_data = analyze_competitor_content(uploaded_competitor_files)
 
                     # Prepare data for the prompt
                     user_structure_str = '\n'.join([f"{item['level']}: {item['text']}" for item in user_structure])
-                    competitor_headings_str = '\n'.join([f"{item['level']}: {item['text']}" for item in competitor_headings])
 
                     # Generate detailed recommendations
                     recommendations_text = generate_detailed_recommendations(
                         keyword=keyword,
+                        meta_title=meta_title,
+                        meta_description=meta_description,
+                        h1_text=h1_text,
                         user_structure=user_structure_str,
-                        competitor_headings=competitor_headings_str,
+                        competitor_data=competitor_data,
                         api_key=openai_api_key
                     )
 
@@ -211,31 +281,42 @@ if st.button("Optimize Content"):
                         doc.add_heading("Content Optimization Recommendations", level=1)
                         doc.add_paragraph(f"Keyword: {keyword}")
 
-                        for rec in recommendations:
-                            doc.add_heading(rec.get('title', ''), level=2)
-                            new_section_heading = rec.get('New Section Heading', '')
-                            heading_level = rec.get('Heading Level', '')
-                            placement = rec.get('Placement', '')
-                            content_description = rec.get('Content Description', '')
+                        # Meta Title Recommendation
+                        doc.add_heading("Meta Title Recommendation", level=2)
+                        doc.add_paragraph(recommendations['meta_title'])
 
-                            if new_section_heading:
-                                doc.add_heading("New Section Heading:", level=3)
-                                doc.add_paragraph(new_section_heading)
-                            if heading_level:
-                                doc.add_heading("Heading Level:", level=3)
-                                doc.add_paragraph(heading_level)
-                            if placement:
-                                doc.add_heading("Placement:", level=3)
-                                doc.add_paragraph(placement)
-                            if content_description:
-                                doc.add_heading("Content Description:", level=3)
-                                doc.add_paragraph(content_description)
-                        
-                        # Check for final summary
-                        if 'Provide a final summary' in recommendations_text:
-                            summary = recommendations_text.split('Provide a final summary')[-1].strip()
+                        # Meta Description Recommendation
+                        doc.add_heading("Meta Description Recommendation", level=2)
+                        doc.add_paragraph(recommendations['meta_description'])
+
+                        # H1 Tag Recommendation
+                        doc.add_heading("H1 Tag Recommendation", level=2)
+                        doc.add_paragraph(recommendations['h1_tag'])
+
+                        # Content Recommendations
+                        if recommendations['content']:
+                            doc.add_heading("Content Recommendations", level=2)
+                            for rec in recommendations['content']:
+                                doc.add_heading(rec.get('title', ''), level=3)
+                                details = rec.get('details', {})
+                                for key, value in details.items():
+                                    doc.add_heading(f"{key}:", level=4)
+                                    doc.add_paragraph(value)
+
+                        # Rearrangement Suggestions
+                        if recommendations['rearrangements']:
+                            doc.add_heading("Rearrangement Suggestions", level=2)
+                            for rec in recommendations['rearrangements']:
+                                doc.add_heading(rec.get('title', ''), level=3)
+                                details = rec.get('details', {})
+                                for key, value in details.items():
+                                    doc.add_heading(f"{key}:", level=4)
+                                    doc.add_paragraph(value)
+
+                        # Final Summary
+                        if recommendations['summary']:
                             doc.add_heading("Final Summary", level=2)
-                            doc.add_paragraph(summary)
+                            doc.add_paragraph(recommendations['summary'])
 
                         # Create a BytesIO buffer and save the docx content
                         bio = BytesIO()
