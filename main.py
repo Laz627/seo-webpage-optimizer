@@ -55,10 +55,9 @@ def get_random_headers():
     }
     return headers
 
-# Function to get a free proxy using FreeProxy
 def get_free_proxy():
     try:
-        proxy = FreeProxy(timeout=1, rand=True, anonym=True).get()
+        proxy = FreeProxy(timeout=1, rand=True, anonym=True, https=True).get()
         return proxy
     except Exception as e:
         st.warning(f"Error fetching proxy: {str(e)}")
