@@ -99,9 +99,10 @@ def analyze_competitor_content(urls):
                     st.warning("Could not obtain a free proxy. Proceeding without proxy.")
                     proxies = None
                 else:
+                    # Use the proxy string directly without adding 'http://'
                     proxies = {
-                        'http': f'http://{proxy}',
-                        'https': f'http://{proxy}',
+                        'http': proxy,
+                        'https': proxy,
                     }
                 session = requests.Session()
                 retries = requests.adapters.Retry(
