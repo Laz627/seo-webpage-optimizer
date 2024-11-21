@@ -1,8 +1,6 @@
 import streamlit as st
 from bs4 import BeautifulSoup
 from openai import OpenAI
-from docx import Document
-from io import BytesIO
 
 # Set page config
 st.set_page_config(page_title="Content Optimizer", layout="wide")
@@ -16,9 +14,8 @@ st.markdown("""
 3. **Input your target keyword.**
 4. **Upload competitor HTML files** for comparison.
 5. Click **'Optimize Content'** to analyze competitor pages and receive content recommendations.
-6. **Download the recommendations** as a Word document.
 
-This tool provides specific recommendations on how to enhance your content based on competitor analysis, including new sections to add, where to place them, the appropriate heading levels, and suggestions for your meta title, meta description, and H1 tag based on SEO best practices.
+This tool provides specific recommendations on how to enhance your content based on competitor analysis, including new sections to add, where to place them, and suggestions for your meta title, meta description, and H1 tag based on SEO best practices.
 
 **Note:** The script ignores irrelevant content such as menu navigation links, footer links, and anchor text not part of the main content.
 """)
@@ -224,7 +221,7 @@ IMPORTANT: Do not include any additional text outside of the specified format. D
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "Provide detailed SEO content recommendations based on the analysis."},
                 {"role": "user", "content": prompt}
@@ -236,76 +233,6 @@ IMPORTANT: Do not include any additional text outside of the specified format. D
     except Exception as e:
         st.error(f"Error generating recommendations:\n\n{str(e)}")
         return None
-
-def parse_recommendations(recommendations_text):
-    # Parse the recommendations into structured data
-    recommendations = {'meta_title': '', 'meta_description': '', 'h1_tag': '', 'content': [], 'rearrangements': [], 'summary': ''}
-    lines = recommendations_text.strip().split('\n')
-    section = None
-    content_rec = {}
-    rearrangement_rec = {}
-    for line in lines:
-        line = line.strip()
-        if line.startswith('**Meta Title Recommendation:**'):
-            section = 'meta_title'
-            recommendations['meta_title'] = ''
-        elif line.startswith('**Meta Description Recommendation:**'):
-            section = 'meta_description'
-            recommendations['meta_description'] = ''
-        elif line.startswith('**H1 Tag Recommendation:**'):
-            section = 'h1_tag'
-            recommendations['h1_tag'] = ''
-        elif line.startswith('**Content Recommendations:**'):
-            section = 'content'
-        elif line.startswith('---') and section == 'content':
-            if content_rec:
-                recommendations['content'].append(content_rec)
-            content_rec = {}
-        elif line.startswith('**Recommendation #'):
-            content_rec['title'] = line.strip('**')
-        elif line.startswith('**Rearrangement Suggestion:**'):
-            if content_rec:
-                recommendations['content'].append(content_rec)
-                content_rec = {}
-            section = 'rearrangement'
-            rearrangement_rec = {}
-        elif line.startswith('---') and section == 'rearrangement':
-            if rearrangement_rec:
-                recommendations['rearrangements'].append(rearrangement_rec)
-            rearrangement_rec = {}
-        elif section == 'meta_title':
-            recommendations['meta_title'] += line + ' '
-        elif section == 'meta_description':
-            recommendations['meta_description'] += line + ' '
-        elif section == 'h1_tag':
-            recommendations['h1_tag'] += line + ' '
-        elif section == 'content':
-            if ': ' in line:
-                key, value = line.split(': ', 1)
-                content_rec[key.strip('**')] = value.strip()
-            else:
-                # Continuation lines
-                if 'Content Description' in content_rec:
-                    content_rec['Content Description'] += ' ' + line
-        elif section == 'rearrangement':
-            if ': ' in line:
-                key, value = line.split(': ', 1)
-                rearrangement_rec[key.strip('**')] = value.strip()
-            else:
-                if 'Reason' in rearrangement_rec:
-                    rearrangement_rec['Reason'] += ' ' + line
-        elif section == 'summary' or line.startswith('Provide a final summary'):
-            section = 'summary'
-            recommendations['summary'] += line + ' '
-        else:
-            if section == 'summary':
-                recommendations['summary'] += line + ' '
-    # Append any remaining recommendations
-    if content_rec:
-        recommendations['content'].append(content_rec)
-    if rearrangement_rec:
-        recommendations['rearrangements'].append(rearrangement_rec)
-    return recommendations
 
 # Streamlit UI
 st.write("Enter your API key and target keyword below:")
@@ -358,67 +285,8 @@ if st.button("Optimize Content"):
 
                     if recommendations_text:
                         st.subheader("Detailed Recommendations:")
+                        # Display recommendations with proper formatting
                         st.markdown(recommendations_text)
-
-                        # Parse recommendations for Word document
-                        recommendations = parse_recommendations(recommendations_text)
-
-                        # Create a Word document with the recommendations
-                        doc = Document()
-                        doc.add_heading("Content Optimization Recommendations", level=1)
-                        doc.add_paragraph(f"Keyword: {keyword}")
-
-                        # Meta Title Recommendation
-                        doc.add_heading("Meta Title Recommendation", level=2)
-                        doc.add_paragraph(recommendations['meta_title'].strip())
-
-                        # Meta Description Recommendation
-                        doc.add_heading("Meta Description Recommendation", level=2)
-                        doc.add_paragraph(recommendations['meta_description'].strip())
-
-                        # H1 Tag Recommendation
-                        doc.add_heading("H1 Tag Recommendation", level=2)
-                        doc.add_paragraph(recommendations['h1_tag'].strip())
-
-                        # Content Recommendations
-                        if recommendations['content']:
-                            doc.add_heading("Content Recommendations", level=2)
-                            for rec in recommendations['content']:
-                                doc.add_heading(rec.get('title', '').strip('**'), level=3)
-                                if 'New Section Heading' in rec:
-                                    doc.add_paragraph(rec['New Section Heading'])
-                                if 'Placement' in rec:
-                                    doc.add_heading("Placement:", level=4)
-                                    doc.add_paragraph(rec['Placement'])
-                                if 'Content Description' in rec:
-                                    doc.add_heading("Content Description:", level=4)
-                                    doc.add_paragraph(rec['Content Description'])
-                        # Rearrangement Suggestions
-                        if recommendations['rearrangements']:
-                            doc.add_heading("Rearrangement Suggestions", level=2)
-                            for rec in recommendations['rearrangements']:
-                                doc.add_heading(rec.get('title', '').strip('**'), level=3)
-                                for key in ['Current Section', 'New Position', 'Reason']:
-                                    if key in rec:
-                                        doc.add_heading(f"{key}:", level=4)
-                                        doc.add_paragraph(rec[key])
-
-                        # Final Summary
-                        if recommendations['summary']:
-                            doc.add_heading("Final Summary", level=2)
-                            doc.add_paragraph(recommendations['summary'].strip())
-
-                        # Create a BytesIO buffer and save the docx content
-                        bio = BytesIO()
-                        doc.save(bio)
-                        bio.seek(0)
-
-                        st.download_button(
-                            label="Download Recommendations",
-                            data=bio,
-                            file_name=f"recommendations_{keyword.replace(' ', '_')}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
                     else:
                         st.error("Failed to generate recommendations. Please try again.")
             except Exception as e:
