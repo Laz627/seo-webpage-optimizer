@@ -8,6 +8,7 @@ import time
 import random
 from serpapi import GoogleSearch
 import re
+from fp.fp import FreeProxy  # Import FreeProxy
 
 # Set page config
 st.set_page_config(page_title="Content Optimizer", layout="wide")
@@ -41,13 +42,6 @@ USER_AGENTS = [
     # Add more user agents as needed
 ]
 
-# List of proxies
-PROXIES = [
-    '115.77.244.195:10001',
-    '47.74.46.81:8081',
-    # Include the rest of your proxies
-]
-
 def get_random_headers():
     headers = {
         'User-Agent': random.choice(USER_AGENTS),
@@ -60,6 +54,15 @@ def get_random_headers():
         'Connection': 'keep-alive',
     }
     return headers
+
+# Function to get a free proxy using FreeProxy
+def get_free_proxy():
+    try:
+        proxy = FreeProxy(timeout=1, rand=True, anonym=True).get()
+        return proxy
+    except Exception as e:
+        st.warning(f"Error fetching proxy: {str(e)}")
+        return None
 
 def get_top_urls(keyword, serpapi_key, num_results=15):
     params = {
@@ -91,11 +94,15 @@ def analyze_competitor_content(urls):
             try:
                 time.sleep(random.uniform(2, 5))  # Random delay
                 headers = get_random_headers()
-                proxy = random.choice(PROXIES)
-                proxies = {
-                    'http': f'http://{proxy}',
-                    'https': f'https://{proxy}',
-                }
+                proxy = get_free_proxy()
+                if not proxy:
+                    st.warning("Could not obtain a free proxy. Proceeding without proxy.")
+                    proxies = None
+                else:
+                    proxies = {
+                        'http': f'http://{proxy}',
+                        'https': f'http://{proxy}',
+                    }
                 session = requests.Session()
                 retries = requests.adapters.Retry(
                     total=3,
@@ -129,7 +136,7 @@ def analyze_competitor_content(urls):
                 attempts += 1
                 st.warning(
                     f"Attempt {attempts} for {url} failed with proxy "
-                    f"{proxy}: {e}"
+                    f"{proxy if proxy else 'No Proxy'}: {e}"
                 )
         if not success:
             st.warning(f"Failed to process {url} after {max_attempts} attempts.")
